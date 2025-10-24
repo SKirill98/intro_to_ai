@@ -1,8 +1,7 @@
 import pandas as pd
 import numpy as np
-from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer, HashingVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-import time
 
 def load_and_preprocess(filepath, sample_n=None):
     """
@@ -32,7 +31,7 @@ def load_and_preprocess(filepath, sample_n=None):
     df_cleaned.to_csv(filepath.replace('.csv', '_processed.csv'))
     return df_cleaned
 
-def calculate_similarity_bow(df):
+def calculate_similarity_method1_bow(df):
     """
     Vectorizes text using raw word counts (Bag of Words) and
     calculates the pairwise cosine similarity matrix.
@@ -56,6 +55,65 @@ def calculate_similarity_bow(df):
     print(f"Similarity matrix shape: {cosine_sim_matrix.shape}")
 
     return count_matrix, cosine_sim_matrix
+
+
+def calculate_similarity_tfidf(df):
+    """
+    Vectorizes text using TF-IDF and calculates the
+    pairwise cosine similarity matrix.
+    """
+    print("Initializing TfidfVectorizer...")
+
+    # This is the key change for Method 2
+    # We are using TfidfVectorizer instead of CountVectorizer
+    vectorizer = TfidfVectorizer(stop_words='english', lowercase=True)
+
+    print("Fitting and transforming text data (this may take a moment)...")
+
+    # Create the TF-IDF matrix
+    tfidf_matrix = vectorizer.fit_transform(df['full_text'])
+
+    print(f"TF-IDF matrix shape: {tfidf_matrix.shape} (essays, unique_words)")
+
+    print("Calculating cosine similarity matrix...")
+    # This creates an (N x N) matrix, where N is the number of essays
+    cosine_sim_matrix = cosine_similarity(tfidf_matrix)
+    print(f"Similarity matrix shape: {cosine_sim_matrix.shape}")
+
+    return tfidf_matrix, cosine_sim_matrix
+
+
+def calculate_similarity_hashing(df):
+    """
+    Vectorizes text using HashingVectorizer and calculates the
+    pairwise cosine similarity matrix.
+    """
+    print("Initializing HashingVectorizer...")
+
+    # This is the key change for Method 3
+    # n_features is the number of "buckets" to hash into.
+    # 2**18 (262,144) is a common, large-enough size to reduce
+    # the chance of "collisions".
+    vectorizer = HashingVectorizer(stop_words='english',
+                                   lowercase=True,
+                                   n_features=2 ** 18)
+
+    print("Fitting and transforming text data (this may take a moment)...")
+
+    # Create the Hashing matrix
+    # This vectorizer is "stateless" - the 'fit' part doesn't
+    # actually learn a vocabulary.
+    hash_matrix = vectorizer.fit_transform(df['full_text'])
+
+    print(f"Hashing matrix shape: {hash_matrix.shape} (essays, n_features)")
+
+    print("Calculating cosine similarity matrix...")
+    # This creates an (N x N) matrix, where N is the number of essays
+    cosine_sim_matrix = cosine_similarity(hash_matrix)
+    print(f"Similarity matrix shape: {cosine_sim_matrix.shape}")
+
+    return hash_matrix, cosine_sim_matrix
+
 
 def find_top_pairs(sim_matrix, df, top_n=5):
     """
@@ -102,18 +160,7 @@ def find_top_pairs(sim_matrix, df, top_n=5):
 
     return results
 
-if __name__ == "__main__":
-    SAMPLE_SIZE = 500
-    FILE_PATH = 'data/train.csv'
-
-    processed_df = load_and_preprocess(FILE_PATH, sample_n=SAMPLE_SIZE)
-    processed_df.head()
-
-    if processed_df is not None:
-        start_time = time.time()
-
-        count_matrix, similarity_matrix = calculate_similarity_bow(processed_df)
-        top_pairs = find_top_pairs(similarity_matrix, processed_df, top_n=5)
-
-        end_time = time.time()
-        print(f"\nTotal execution time: {end_time - start_time:.2f} seconds")
+def get_top_pairs(method_function, df, top_n=5):
+    count_matrix, similarity_matrix = method_function(df)
+    top_pairs = find_top_pairs(similarity_matrix, df, top_n=top_n)
+    return count_matrix, similarity_matrix, top_pairs
