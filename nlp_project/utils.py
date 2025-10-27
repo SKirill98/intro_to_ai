@@ -26,11 +26,22 @@ def load_and_preprocess(filepath, sample_n=None):
 
     # Reset index to make sure matrix indices match dataframe indices
     df_cleaned = df_cleaned.reset_index(drop=True)
+    
+    # Text normalization and preprocessing
+    print("Normalizing and cleaning text...")
+    df_cleaned['full_text'] = (
+        df_cleaned['full_text']
+        .str.lower()
+        .str.replace(r'[^a-z\s]', '', regex=True)
+        .str.replace(r'\s+', ' ', regex=True)
+        .str.strip()
+    )
+    
     print(f"Final processed shape: {df_cleaned.shape}")
-
     df_cleaned.to_csv(filepath.replace('.csv', '_processed.csv'))
     return df_cleaned
 
+# Method 1: Bag of Words Vectorizer
 def calculate_similarity_method1_bow(df):
     """
     Vectorizes text using raw word counts (Bag of Words) and
@@ -56,7 +67,7 @@ def calculate_similarity_method1_bow(df):
 
     return count_matrix, cosine_sim_matrix
 
-
+# Method 2: TF-IDF Vectorizer
 def calculate_similarity_tfidf(df):
     """
     Vectorizes text using TF-IDF and calculates the
@@ -82,7 +93,7 @@ def calculate_similarity_tfidf(df):
 
     return tfidf_matrix, cosine_sim_matrix
 
-
+# Method 3: Hashing Vectorizer
 def calculate_similarity_hashing(df):
     """
     Vectorizes text using HashingVectorizer and calculates the
@@ -145,14 +156,14 @@ def find_top_pairs(sim_matrix, df, top_n=5):
         essay_2_text = df.loc[col, 'full_text'][:100] + "..."
 
         results.append({
-            "score": similarity_score,
+            "score": round(similarity_score * 100, 2),
             "essay_1_id": essay_1_id,
             "essay_2_id": essay_2_id,
             "essay_1_preview": essay_1_text,
             "essay_2_preview": essay_2_text
         })
 
-        print(f"\nSimilarity Score: {similarity_score:.4f}")
+        print(f"\nSimilarity Score: {similarity_score * 100:.2f}%")
         print(f"  Essay 1 ID: {essay_1_id}")
         print(f"  Preview 1: {essay_1_text}")
         print(f"  Essay 2 ID: {essay_2_id}")
