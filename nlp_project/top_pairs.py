@@ -1,10 +1,11 @@
 import pandas as pd
 import numpy as np
 from utils import (load_and_preprocess, calculate_similarity_method1_bow, calculate_similarity_tfidf,
-                   calculate_similarity_hashing, get_top_pairs)
+                   calculate_similarity_hashing, find_bottom_pairs, get_top_pairs)
 import time
 import matplotlib.pyplot as plt
 import seaborn as sns
+import gc
 
 if __name__ == "__main__":
     SAMPLE_SIZE = 5000
@@ -26,6 +27,7 @@ if __name__ == "__main__":
             print(f"\nRunning {name}...")
             start_time = time.time()
             count_matrix, similarity_matrix, top_pairs = get_top_pairs(method, processed_df, top_n=5)
+            bottom_pairs = find_bottom_pairs(similarity_matrix, processed_df, bottom_n=5)
             end_time = time.time()
             execution_times[name] = end_time - start_time
             print(f"{name} took {execution_times[name]:.2f} seconds.")
@@ -53,6 +55,11 @@ if __name__ == "__main__":
             plt.tight_layout()
             plt.savefig(f"similarity_top_pairs_{name}.png")  # saves chart for your report
             plt.show()
+            
+            # Clean RAM Between Methods
+            del similarity_matrix
+            del count_matrix
+            gc.collect()
         
         # Visualize Execution Times
         plt.figure(figsize=(6, 4))

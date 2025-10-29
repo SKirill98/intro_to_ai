@@ -31,10 +31,10 @@ def load_and_preprocess(filepath, sample_n=None):
     print("Normalizing and cleaning text...")
     df_cleaned['full_text'] = (
         df_cleaned['full_text']
-        .str.lower()
-        .str.replace(r'[^a-z\s]', '', regex=True)
-        .str.replace(r'\s+', ' ', regex=True)
-        .str.strip()
+        .str.lower() # convert to lowercase
+        .str.replace(r'[^a-z\s]', '', regex=True) # remove punctuation/numbers
+        .str.replace(r'\s+', ' ', regex=True)  # collapse multiple spaces
+        .str.strip() # trim leading/trailing spaces
     )
     
     print(f"Final processed shape: {df_cleaned.shape}")
@@ -105,9 +105,12 @@ def calculate_similarity_hashing(df):
     # n_features is the number of "buckets" to hash into.
     # 2**18 (262,144) is a common, large-enough size to reduce
     # the chance of "collisions".
-    vectorizer = HashingVectorizer(stop_words='english',
-                                   lowercase=True,
-                                   n_features=2 ** 18)
+    vectorizer = HashingVectorizer(
+        stop_words='english',
+        lowercase=True,
+        n_features=2 ** 20,  # 1,048,576 buckets instead of 262,144
+        alternate_sign=False   # Fix negative similarities
+    )
 
     print("Fitting and transforming text data (this may take a moment)...")
 
@@ -151,6 +154,50 @@ def find_top_pairs(sim_matrix, df, top_n=5):
         # Get the original essay info
         essay_1_id = df.loc[row, 'essay_id']
         essay_1_text = df.loc[row, 'full_text'][:100] + "..." # Get 1-line preview
+
+        essay_2_id = df.loc[col, 'essay_id']
+        essay_2_text = df.loc[col, 'full_text'][:100] + "..."
+
+        results.append({
+            "score": round(similarity_score * 100, 2),
+            "essay_1_id": essay_1_id,
+            "essay_2_id": essay_2_id,
+            "essay_1_preview": essay_1_text,
+            "essay_2_preview": essay_2_text
+        })
+
+        print(f"\nSimilarity Score: {similarity_score * 100:.2f}%")
+        print(f"  Essay 1 ID: {essay_1_id}")
+        print(f"  Preview 1: {essay_1_text}")
+        print(f"  Essay 2 ID: {essay_2_id}")
+        print(f"  Preview 2: {essay_2_text}")
+
+    return results
+
+def find_bottom_pairs(sim_matrix, df, bottom_n=5):
+    """
+    Finds the bottom_n least similar pairs, ignoring self-comparisons.
+    """
+    print(f"\nFinding bottom {bottom_n} least similar pairs...")
+
+    upper_triangle = np.triu(sim_matrix, k=1)
+
+    # Replace zeros with +inf to avoid selecting empty similarities if needed
+    # (useful if many essays share no vocabulary)
+    masked = np.ma.masked_equal(upper_triangle, 0)
+
+    # Get the smallest values (least similar)
+    flat_indices = np.argsort(masked.flatten())[:bottom_n]
+
+    bottom_pairs_indices = [np.unravel_index(i, upper_triangle.shape)
+                            for i in flat_indices]
+
+    results = []
+    for row, col in bottom_pairs_indices:
+        similarity_score = sim_matrix[row, col]
+
+        essay_1_id = df.loc[row, 'essay_id']
+        essay_1_text = df.loc[row, 'full_text'][:100] + "..."
 
         essay_2_id = df.loc[col, 'essay_id']
         essay_2_text = df.loc[col, 'full_text'][:100] + "..."
